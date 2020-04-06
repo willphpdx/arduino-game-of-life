@@ -1,6 +1,5 @@
 #include <Adafruit_NeoPixel.h>
 #include <Math.h>
-#include <MD5.h>
 
 #define PIXEL_DATA_PIN (6)
 #define NUM_LIGHTS     (64)
@@ -23,6 +22,38 @@ void refresh() {
   }
 }
 
+unsigned long getColorAsRGB(unsigned long hsvColor) {
+  byte result[3];
+  
+  float h = (float)((byte)(hsvColor>>16) & 0xFF) / 256.0;
+  float s = (float)((byte)(hsvColor>>8) & 0xFF) / 256.0;
+  float v = (float)((byte)(hsvColor) & 0xFF) / 256.0;
+
+  h=h - (int)h;
+  s=s - (int)s;
+  v=v - (int)v;
+
+  float r, g, b;
+  float i, f, p, q, t;
+
+  i = floor(h * 6);
+  f = h * 6 - i;
+  p = v * (1 - s);
+  q = v * (1 - f * s);
+  t = v * (1 - (1 - f) * s);
+
+  switch ((int)i % 6) {
+      case 0: r = v; g = t; b = p; break;
+      case 1: r = q; g = v; b = p; break;
+      case 2: r = p; g = v; b = t; break;
+      case 3: r = p; g = q; b = v; break;
+      case 4: r = t; g = p; b = v; break;
+      case 5: r = v; g = p; b = q; break;
+  }
+
+  return (unsigned long)round(r*255)<<16 | (unsigned long)round(g*255)<<8 | (unsigned long)round(b*255);
+}
+
 void reset() {
   randomSeed((unsigned long)analogRead(0) * micros());
   
@@ -33,12 +64,6 @@ void reset() {
   writePixel(0, (unsigned long)255<<8);
   delay(500);
   writePixel(0, (unsigned long)0);
-
-// Oscilator
-//  setPixel(0, COLOR_OF_LIFE );
-//  setPixel(1, COLOR_OF_LIFE );
-//  setPixel(7, COLOR_OF_LIFE );
-//  refresh();
 
   for(int i=0; i<NUM_LIGHTS; ++i) {
     int r = (int)floor(i/8);
