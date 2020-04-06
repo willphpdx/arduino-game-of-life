@@ -1,10 +1,12 @@
 #include <Adafruit_NeoPixel.h>
 #include <Math.h>
+#include <MD5.h>
 
 #define PIXEL_DATA_PIN (6)
 #define NUM_LIGHTS     (64)
 #define LIFE           ((unsigned long)128<<8 | 255)
 #define DEATH          ((unsigned long)0)
+#define TOUCHED        ((unsigned long)96<<8)
 
 // When setting up the NeoPixel library, we tell it how many pixels,
 // and which pin to use to send signals. Note that for older NeoPixel
@@ -12,25 +14,25 @@
 // strandtest example for more information on possible values.
 Adafruit_NeoPixel pixels(NUM_LIGHTS, PIXEL_DATA_PIN, NEO_GRB + NEO_KHZ800);
 
-unsigned long pmem[NUM_LIGHTS];
+bool cells[NUM_LIGHTS];
+bool touched[NUM_LIGHTS];
 
 void refresh() {
   for(int i=0; i<NUM_LIGHTS; ++i) {
-    writePixel(i, getPixelColor(i));
+    writePixel(i, cells[i] ? LIFE : DEATH);
   }
 }
 
 void reset() {
-  randomSeed(micros() + analogRead(0));
-    
+  randomSeed((unsigned long)analogRead(0) * micros());
+  
   for(int i=0; i<NUM_LIGHTS; ++i) {
     setPixel(i, (unsigned long)0);
+    touched[i] = false;
   }
-  setPixel(0, (unsigned long)100<<8 | (unsigned long)100<<16);
-  refresh();
+  writePixel(0, (unsigned long)255<<8);
   delay(500);
-  setPixel(0, (unsigned long)0);
-  refresh();
+  writePixel(0, (unsigned long)0);
 
 // Oscilator
 //  setPixel(0, COLOR_OF_LIFE );
@@ -44,16 +46,16 @@ void reset() {
     setPixel(i, random(100) > 50 && (r>1 && r<6 && c>1 && c<6)? LIFE : DEATH);
   }
   refresh();
+
 }
 
 bool detectLife() {
   bool life = false;
   for(int i=0; i<NUM_LIGHTS; ++i) {
-    life |= getPixelColor(i) ? 1 : 0;
+    life |= isCellAlive(i) ? 1 : 0;
   }
   return life;
 }
-
 
 void setup() {
     Serial.begin(115200);
@@ -66,7 +68,7 @@ void setup() {
 }
 
 void setPixel(byte pixel, unsigned long color) {
-  pmem[pixel] = color;
+  cells[pixel] = color;
 }
 
 void writePixel(byte pixel, unsigned long color) {
@@ -77,11 +79,11 @@ void writePixel(byte pixel, unsigned long color) {
     pixels.show();  
 }
 
-uint32_t getPixelColor(byte pixel) {
-  return pmem[pixel];
+bool isCellAlive(byte pixel) {
+  return cells[pixel];
 }
 
-uint32_t getPixelColor(byte p0, int rr, int rc) {
+bool isCellAlive(byte p0, int rr, int rc) {
     int r0 = (int)floor(p0 / 8);
     int c0 = p0 % 8;
     int c = c0 + rc;
@@ -98,7 +100,7 @@ uint32_t getPixelColor(byte p0, int rr, int rc) {
     }
 
     byte p = r * 8 + c;
-    return getPixelColor(p);
+    return isCellAlive(p);
 }
 
 long t0 = 0;
@@ -107,23 +109,24 @@ void loop() {
     delay(200);
     for(int i=0; i<NUM_LIGHTS; ++i) {
       int n = 0;
-      if( getPixelColor(i, -1, -1) ) ++n;
-      if( getPixelColor(i, -1, +0) ) ++n;
-      if( getPixelColor(i, -1, +1) ) ++n;
-      if( getPixelColor(i, +0, -1) ) ++n;
-      if( getPixelColor(i, +0, +1) ) ++n;
-      if( getPixelColor(i, +1, -1) ) ++n;
-      if( getPixelColor(i, +1, +0) ) ++n;
-      if( getPixelColor(i, +1, +1) ) ++n;
+      if( isCellAlive(i, -1, -1) ) ++n;
+      if( isCellAlive(i, -1, +0) ) ++n;
+      if( isCellAlive(i, -1, +1) ) ++n;
+      if( isCellAlive(i, +0, -1) ) ++n;
+      if( isCellAlive(i, +0, +1) ) ++n;
+      if( isCellAlive(i, +1, -1) ) ++n;
+      if( isCellAlive(i, +1, +0) ) ++n;
+      if( isCellAlive(i, +1, +1) ) ++n;
       count[i] = n;
     }
 
     for(int i=0; i<NUM_LIGHTS; ++i) {
-      if( getPixelColor(i) && (count[i]<2 || count[i]>3) ) {
+      if( isCellAlive(i) && (count[i]<2 || count[i]>3) ) {
         setPixel(i, DEATH);
-      } else if( !getPixelColor(i) && (count[i]==3) ) {
+      } else if( !isCellAlive(i) && (count[i]==3) ) {
         setPixel(i, LIFE);
       }
+      touched[i] = touched[i] | cells[i];
     }
     refresh();
     
